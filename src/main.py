@@ -69,17 +69,18 @@ def fetch_problem(config: dict) -> "ProblemContext":
     ingestion_config = config.get("ingestion", {})
     language = config.get("pipeline", {}).get("language", "cpp")
 
-    # Attempt primary: LeetCode
+    # Attempt primary: LeetCode (random problem)
     leetcode_config = ingestion_config.get("leetcode", {})
     if leetcode_config.get("enabled", True):
         try:
             fetcher = LeetCodeFetcher(
-                api_url=leetcode_config.get("api_url", "https://leetcode.com/graphql"),
+                api_url=leetcode_config.get("api_url", "https://alfa-leetcode-api.onrender.com"),
                 timeout=leetcode_config.get("timeout", 30),
                 language=language,
+                page_size=leetcode_config.get("page_size", 50),
             )
             problem = fetcher.fetch()
-            log.info("Fetched LeetCode daily challenge: %s", problem.title)
+            log.info("Fetched random LeetCode problem: %s", problem.title)
             return problem
         except IngestionError as e:
             log.warning("LeetCode fetch failed: %s — switching to backlog", e)

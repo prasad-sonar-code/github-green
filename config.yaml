@@ -14,6 +14,8 @@ ingestion:
     api_url: "https://alfa-leetcode-api.onrender.com"
     # Request timeout in seconds
     timeout: 30
+    # How many problems to fetch per page when picking randomly
+    page_size: 50
   backlog:
     # Path to local backlog JSON file
     file_path: "backlog.json"

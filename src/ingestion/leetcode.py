@@ -3,13 +3,14 @@
 API docs: https://github.com/alfaarghya/alfa-leetcode-api
 Base URL: https://alfa-leetcode-api.onrender.com
 Endpoints:
-  GET /daily/raw       — Daily challenge with full data (code snippets, hints, metadata)
+  GET /problems?limit=N&skip=N  — Problem list (paginated)
   GET /select/raw?titleSlug=<slug>  — Specific problem with full data
 """
 
 from __future__ import annotations
 
 import logging
+import random
 import re
 from typing import Any
 
@@ -22,12 +23,16 @@ log = logging.getLogger(__name__)
 
 
 class LeetCodeFetcher(ProblemFetcher):
-    """Fetches LeetCode problems via the alfa-leetcode-api REST API.
+    """Fetches a random LeetCode problem via the alfa-leetcode-api REST API.
 
-    Uses the /raw endpoints which provide full problem data including:
+    Strategy:
+    1. Fetch a random page from /problems list (skipping paid-only)
+    2. Pick a random problem from that page
+    3. Fetch full details via /select/raw with the titleSlug
+
+    Provides full problem data including:
     - codeSnippets (exact LeetCode boilerplate with correct method signature)
     - hints (algorithmic guidance)
-    - metaData (function name, params, return type)
     """
 
     def __init__(
@@ -35,10 +40,12 @@ class LeetCodeFetcher(ProblemFetcher):
         api_url: str = "https://alfa-leetcode-api.onrender.com",
         timeout: int = 30,
         language: str = "cpp",
+        page_size: int = 50,
     ):
         self.api_url = api_url.rstrip("/")
         self.timeout = timeout
         self.language = language
+        self.page_size = page_size
         self.session = requests.Session()
         self.session.headers.update({
             "Accept": "application/json",
@@ -49,19 +56,61 @@ class LeetCodeFetcher(ProblemFetcher):
         })
 
     def fetch(self) -> ProblemContext:
-        """Fetch the daily challenge with full metadata."""
-        log.info("Fetching LeetCode daily challenge from %s/daily/raw", self.api_url)
+        """Fetch a random LeetCode problem with full metadata."""
+        # Step 1: get total problem count
+        log.info("Finding random LeetCode problem...")
+        total = self._get_total_problems()
+        log.debug("Total problems available: %d", total)
+
+        # Step 2: pick random offset and fetch a page
+        max_skip = max(0, total - self.page_size)
+        skip = random.randint(0, max_skip)
+        problems = self._list_problems(skip=skip)
+        log.debug("Fetched %d problems at offset %d", len(problems), skip)
+
+        if not problems:
+            raise IngestionError("No problems found in listing")
+
+        # Filter out paid-only problems
+        free_problems = [p for p in problems if not p.get("isPaidOnly")]
+        if not free_problems:
+            raise IngestionError("All problems in this page are paid-only")
+
+        # Step 3: pick one at random
+        chosen = random.choice(free_problems)
+        title_slug = chosen["titleSlug"]
+        log.info("Selected: %s (%s)", chosen["title"], chosen["difficulty"])
+
+        # Step 4: fetch full details
+        return self.fetch_by_slug(title_slug)
+
+    def _get_total_problems(self) -> int:
+        """Get the total number of problems available."""
         try:
             resp = self.session.get(
-                f"{self.api_url}/daily/raw",
+                f"{self.api_url}/problems",
+                params={"limit": 1},
                 timeout=self.timeout,
             )
             resp.raise_for_status()
             data = resp.json()
-            question = data.get("activeDailyCodingChallengeQuestion", {}).get("question", data)
-            return self._parse_problem(question)
+            return data.get("totalQuestions", 0)
         except requests.RequestException as e:
-            raise IngestionError(f"Network error fetching daily problem: {e}") from e
+            raise IngestionError(f"Failed to get problem count: {e}") from e
+
+    def _list_problems(self, skip: int = 0) -> list[dict]:
+        """Fetch a page of problems from the listing endpoint."""
+        try:
+            resp = self.session.get(
+                f"{self.api_url}/problems",
+                params={"limit": self.page_size, "skip": skip},
+                timeout=self.timeout,
+            )
+            resp.raise_for_status()
+            data = resp.json()
+            return data.get("problemsetQuestionList", [])
+        except requests.RequestException as e:
+            raise IngestionError(f"Failed to list problems: {e}") from e
 
     def fetch_by_slug(self, title_slug: str) -> ProblemContext:
         """Fetch a specific problem by its slug (e.g., 'two-sum') with full metadata."""
