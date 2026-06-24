@@ -12,10 +12,9 @@ GitHubGreenCard is **serverless** — it runs entirely within GitHub Actions. Th
 │                                    │
 │  ┌──────────────────────────────┐  │
 │  │  Daily DSA Solve Workflow    │  │
-│  │  ├─ Random delay (0-12h)     │  │
 │  │  ├─ Checkout repo            │  │
 │  │  ├─ Install Python + deps    │  │
-│  │  ├─ Run pipeline             │  │
+│  │  ├─ Run pipeline (~3 min)    │  │
 │  │  └─ Commit + push            │  │
 │  └──────────────────────────────┘  │
 │                                    │
@@ -54,9 +53,8 @@ cd github-green
 
 The pipeline is defined in `.github/workflows/daily-solve.yml`. Default settings:
 
-- **Cron**: `0 0 * * *` (midnight UTC) + random sleep
-- **Branch**: `main`
-- **Timeout**: 780 minutes (13h)
+- **Cron**: `0 2 * * *` (02:00 UTC)
+- **Timeout**: 10 minutes
 - **Python**: 3.14
 
 ### 4. Push to main
@@ -81,14 +79,9 @@ git push origin main
 
 ## Scheduled Runs
 
-The workflow runs daily at a **randomized time** within two windows:
+The workflow runs daily at **02:00 UTC** (configurable via the `cron` expression in `daily-solve.yml`).
 
-| Window | Time (UTC) | Delay from midnight |
-|---|---|---|
-| Window 0 (50% chance) | 0:00 – 3:00 | 0–10,800 seconds |
-| Window 1 (50% chance) | 6:00 – 12:00 | 21,600–43,200 seconds |
-
-The cron fires at **00:00 UTC** every day, then a Python step picks a random window and sleeps.
+Each run takes approximately 2–3 minutes — no random delays, minimal Actions minutes used.
 
 ---
 
@@ -156,7 +149,7 @@ Check the expandable log output in the Actions run. Common causes:
 
 - **LLM failure** — NVIDIA NIM may be down or rate-limited
 - **LeetCode API failure** — alfa-leetcode-api may be unreachable (falls back to backlog)
-- **Timeout** — 780-minute timeout should cover the random delay, but check if pipeline itself is hanging
+- **Secret not set** — `NVIDIA_API_KEY` must be added to repository secrets
 
 ### Push rejected
 

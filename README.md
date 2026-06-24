@@ -5,7 +5,7 @@
 ## How It Works
 
 ```
-Every day at a randomized time (midnight-3am or 6am-noon UTC):
+Every day at 02:00 UTC (adjustable in the workflow cron):
 
   1. Pick a random free LeetCode problem
   2. Generate a C++ solution via NVIDIA NIM (meta/llama-3.1-70b-instruct)

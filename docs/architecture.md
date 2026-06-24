@@ -13,7 +13,7 @@ It runs entirely within **GitHub Actions** (free tier, Ubuntu runner) with no ex
 ```
 ┌─────────────────────────────────────────────────────────────────────┐
 │  TRIGGER (daily cron or manual workflow_dispatch)                   │
-│  └─ midnight UTC + random sleep (0-3h or 6-12h)                    │
+│  └─ 02:00 UTC (configurable in daily-solve.yml)                    │
 └─────────────────────────────────────────────────────────────────────┘
                                 │
                                 ▼
@@ -164,10 +164,10 @@ class ProblemContext:
 
 | Trigger | Description |
 |---|---|
-| `schedule` | `0 0 * * *` — midnight UTC daily + random sleep |
+| `schedule` | `0 2 * * *` — daily at 02:00 UTC |
 | `workflow_dispatch` | Manual trigger with optional `dry_run` input |
 
-**Job timeout**: 780 minutes (13 hours) — accommodates up to 12h random delay + 3min pipeline.
+**Job timeout**: 10 minutes — pipeline finishes in ~2-3 minutes.
 
 **Steps**:
 1. **Randomize start time** — Python script sleeps 0-3h (window 0) or 6-12h (window 1)

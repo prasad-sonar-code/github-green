@@ -107,7 +107,7 @@ All 26 tests should pass.
 ### 2. Trigger the workflow
 
 - **Manual**: Go to **Actions → Daily DSA Solve → "Run workflow"** → optionally set `dry_run=true` → **"Run"**
-- **Scheduled**: The cron runs daily with a randomized delay (see [deployment guide](deployment.md))
+- **Scheduled**: The cron runs daily at 02:00 UTC (adjustable)
 
 ### 3. Verify
 
