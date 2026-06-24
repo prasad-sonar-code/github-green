@@ -65,8 +65,20 @@ class ProblemContext:
         return f"{self.solved_date}-{kebab}"
 
     def commit_message(self) -> str:
-        """Generate an authentic-looking commit message."""
-        return f"Docs: Auto-solve [{self.source.title()}] {self.title} - {self.solved_date}"
+        """Generate a human-like commit message.
+
+        Picks from a variety of templates so messages don't look
+        auto-generated. Avoids bot markers like "Docs:" or "Auto-solve".
+        """
+        import random
+        templates = [
+            f"Solve {self.title}",
+            f"Solution for {self.title}",
+            f"LeetCode: {self.title}",
+            f"Add solution: {self.title}",
+            f"{self.title} — {self.difficulty.value}",
+        ]
+        return random.choice(templates)
 
     @classmethod
     def from_backlog_entry(cls, entry: dict, language: str = "cpp") -> ProblemContext:

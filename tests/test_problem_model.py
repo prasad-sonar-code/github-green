@@ -31,7 +31,7 @@ class TestProblemContext:
         assert problem.folder_name() == "2026-06-24-valid-parentheses-easy"
 
     def test_commit_message_format(self):
-        """Commit message should follow the pattern."""
+        """Commit message should look human-written and contain the title."""
         problem = ProblemContext(
             title="Reverse Linked List",
             difficulty=Difficulty.EASY,
@@ -41,9 +41,13 @@ class TestProblemContext:
             solved_date="2026-06-24",
         )
         msg = problem.commit_message()
-        assert "Leetcode" in msg
+        # Must contain the problem title
         assert "Reverse Linked List" in msg
-        assert "2026-06-24" in msg
+        # Must look human-written (not contain bot markers)
+        assert "Docs:" not in msg
+        assert "Auto-solve" not in msg
+        # Must be a reasonable length
+        assert 20 <= len(msg) <= 80
 
     def test_default_solved_date(self):
         """Default solved_date should be today."""
