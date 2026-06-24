@@ -31,7 +31,7 @@ class TestCodeGenerator:
         call_kwargs = self.mock_llm.generate.call_args[1]
         assert "expert competitive programmer" in call_kwargs["system_prompt"].lower()
         assert call_kwargs["temperature"] == 0.2
-        assert call_kwargs["max_tokens"] == 2048
+        assert call_kwargs["max_tokens"] == 4096
 
     def test_clean_code_removes_fences(self):
         """Code with markdown fences should be cleaned."""

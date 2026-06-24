@@ -53,6 +53,9 @@ class ProblemContext:
     language: str = "cpp"
     """Target solution language."""
 
+    hints: list[str] = field(default_factory=list)
+    """Algorithmic hints from LeetCode (useful for guiding the LLM)."""
+
     def folder_name(self) -> str:
         """Generate the standardized folder name for this problem.
 

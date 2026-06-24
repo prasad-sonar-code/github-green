@@ -10,30 +10,30 @@ from src.models.problem import ProblemContext
 log = logging.getLogger(__name__)
 
 # System prompt for the code generation stage — strict LeetCode format
-CODE_GENERATOR_SYSTEM_PROMPT = """You are an expert competitive programmer. Your task is to write clean, 
-efficient, and correct LeetCode solution code.
+CODE_GENERATOR_SYSTEM_PROMPT = """You are an expert competitive programmer. Your task is to write correct, 
+efficient LeetCode solutions that pass ALL test cases.
 
-CRITICAL — LeetCode Format Requirements:
-- Output ONLY the `class Solution { public: ... };` block — nothing else.
-- NO `#include` directives, NO `main()` function, NO I/O (cin/cout).
-- The solution must be a valid LeetCode submission: a class with a public method.
-- The method signature must match the standard LeetCode signature for this problem.
-- Use the examples below to infer the correct parameter types and return type.
-
-Guidelines:
-- Write production-grade code with proper edge case handling.
-- Optimize for time and space complexity (specify complexity in comments).
-- Use idiomatic C++ features (STL containers, algorithms).
-- Include clear variable names and logic comments.
-- Only output the code — no explanations, no markdown formatting.
+CRITICAL RULES:
+- Output ONLY the solution class/function — no explanations, no markdown.
+- You MUST use the EXACT boilerplate provided below. Do NOT change the method name, return type, or parameters.
+- Consider the CONSTRAINTS carefully to choose the right algorithm:
+  * n <= 10^4 → O(n^2) may be acceptable
+  * n <= 10^5 → O(n log n) or better
+  * n <= 10^6 → O(n) or better
+  * n <= 10^9 → O(log n) (matrix exponentiation, binary search) or O(1)
+  * n <= 10^12 → O(log n) or O(1)
+- Study the HINTS section — they point to the correct approach.
+- Write clean, idiomatic C++ with STL containers and algorithms.
+- Handle edge cases and respect modulo operations when specified.
+- Include time/space complexity comments at the top of the method.
 """
 
 
 class CodeGenerator:
     """Stage 1 of the LLM pipeline — generates solution code.
 
-    Takes a ProblemContext and produces a solution file string
-    in standard LeetCode format (class Solution with public method).
+    Takes a ProblemContext with exact LeetCode boilerplate and produces
+    a solution file string in standard LeetCode format.
     """
 
     def __init__(self, llm_client: LLMClient):
@@ -43,7 +43,7 @@ class CodeGenerator:
         """Generate solution code for the given problem.
 
         Args:
-            problem: The problem context from ingestion.
+            problem: The problem context from ingestion (must include boilerplate + hints).
 
         Returns:
             Solution source code as a string (LeetCode format).
@@ -54,23 +54,42 @@ class CodeGenerator:
         code = self.llm.generate(
             system_prompt=CODE_GENERATOR_SYSTEM_PROMPT,
             user_prompt=user_prompt,
-            temperature=0.2,  # Low temp for deterministic code
-            max_tokens=2048,
+            temperature=0.2,
+            max_tokens=4096,
         )
 
-        # Clean up potential markdown fences from LLM output
         code = self._clean_code(code)
         log.debug("Generated %d bytes of solution code", len(code))
         return code
 
     def _build_prompt(self, problem: ProblemContext) -> str:
-        """Construct the prompt for code generation."""
+        """Construct the prompt with exact boilerplate and hints."""
         examples_str = ""
         if problem.examples:
             examples_str = "\n".join(
                 f"Example {i+1}:\n  Input: {ex['input']}\n  Output: {ex['output']}"
                 for i, ex in enumerate(problem.examples)
             )
+
+        hints_str = ""
+        if problem.hints:
+            hints_str = "\n".join(
+                f"Hint {i+1}: {h}" for i, h in enumerate(problem.hints)
+            )
+
+        boilerplate_section = f"""
+=== EXACT LEETCODE BOILERPLATE (DO NOT CHANGE SIGNATURE) ===
+{problem.boilerplate}
+=== END BOILERPLATE ===
+""" if problem.boilerplate else ""
+
+        hints_section = f"""
+=== HINTS (algorithm guidance) ===
+{hints_str}
+=== END HINTS ===
+""" if hints_str else ""
+
+        constraints_note = self._constraints_guide(problem.constraints)
 
         return f"""Problem: {problem.title}
 Difficulty: {problem.difficulty.value}
@@ -81,17 +100,33 @@ Description:
 Constraints:
 {problem.constraints}
 
+{constraints_note}
+
 Examples:
 {examples_str}
+{boilerplate_section}
+{hints_section}
+Fill in the boilerplate above with the complete solution in {problem.language}.
+Follow the hints to choose the most efficient algorithm.
+DO NOT change the method signature."""
 
-Write the complete LeetCode solution in {problem.language}.
+    @staticmethod
+    def _constraints_guide(constraints: str) -> str:
+        """Add efficiency guidance based on constraints analysis."""
+        # Extract max values from constraints to suggest algorithm complexity
+        max_vals = []
+        for match in __import__("re").finditer(r"(?:10\^|10<sup>)(\d+)", constraints):
+            max_vals.append(int(match.group(1)))
 
-REMEMBER:
-- ONLY output the `class Solution {{ public: ... }};` block
-- NO #include, NO main(), NO cin/cout
-- The method name and signature must match LeetCode's standard for this problem
-- Infer the parameter types and return type from the examples above
-- Include time/space complexity as comments at the top of the method"""
+        guide = ""
+        if any(v >= 9 for v in max_vals):
+            guide = "⚠️ n can be up to 10^9 or more — MUST use O(log n) or O(1) algorithm (matrix exponentiation, math, binary search). O(n) will timeout."
+        elif any(v >= 6 for v in max_vals):
+            guide = "⚠️ n can be up to 10^6 — use O(n) or O(n log n) algorithm at most."
+        elif any(v >= 5 for v in max_vals):
+            guide = "⚠️ n can be up to 10^5 — use O(n log n) or better."
+
+        return f"\nEFFICIENCY REQUIREMENT: {guide}" if guide else ""
 
     @staticmethod
     def _clean_code(code: str) -> str:

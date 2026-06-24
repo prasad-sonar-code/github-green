@@ -3,13 +3,14 @@
 API docs: https://github.com/alfaarghya/alfa-leetcode-api
 Base URL: https://alfa-leetcode-api.onrender.com
 Endpoints:
-  GET /daily       — Daily challenge problem
-  GET /select?titleSlug=<slug>  — Specific problem by slug
+  GET /daily/raw       — Daily challenge with full data (code snippets, hints, metadata)
+  GET /select/raw?titleSlug=<slug>  — Specific problem with full data
 """
 
 from __future__ import annotations
 
 import logging
+import re
 from typing import Any
 
 import requests
@@ -23,8 +24,10 @@ log = logging.getLogger(__name__)
 class LeetCodeFetcher(ProblemFetcher):
     """Fetches LeetCode problems via the alfa-leetcode-api REST API.
 
-    No authentication required. The API returns problems with description,
-    examples, tags, and hints — but no code snippets/boilerplate.
+    Uses the /raw endpoints which provide full problem data including:
+    - codeSnippets (exact LeetCode boilerplate with correct method signature)
+    - hints (algorithmic guidance)
+    - metaData (function name, params, return type)
     """
 
     def __init__(
@@ -46,52 +49,53 @@ class LeetCodeFetcher(ProblemFetcher):
         })
 
     def fetch(self) -> ProblemContext:
-        """Fetch the daily challenge from LeetCode."""
-        log.info("Fetching LeetCode daily challenge from %s/daily", self.api_url)
+        """Fetch the daily challenge with full metadata."""
+        log.info("Fetching LeetCode daily challenge from %s/daily/raw", self.api_url)
         try:
             resp = self.session.get(
-                f"{self.api_url}/daily",
+                f"{self.api_url}/daily/raw",
                 timeout=self.timeout,
             )
             resp.raise_for_status()
             data = resp.json()
-            return self._parse_problem(data)
+            question = data.get("activeDailyCodingChallengeQuestion", {}).get("question", data)
+            return self._parse_problem(question)
         except requests.RequestException as e:
             raise IngestionError(f"Network error fetching daily problem: {e}") from e
 
     def fetch_by_slug(self, title_slug: str) -> ProblemContext:
-        """Fetch a specific problem by its slug (e.g., 'two-sum')."""
+        """Fetch a specific problem by its slug (e.g., 'two-sum') with full metadata."""
         log.info("Fetching problem by slug: %s", title_slug)
         try:
             resp = self.session.get(
-                f"{self.api_url}/select",
+                f"{self.api_url}/select/raw",
                 params={"titleSlug": title_slug},
                 timeout=self.timeout,
             )
             resp.raise_for_status()
             data = resp.json()
-            return self._parse_problem(data)
+            return self._parse_problem(data.get("question", data))
         except requests.RequestException as e:
             raise IngestionError(
                 f"Network error fetching '{title_slug}': {e}"
             ) from e
 
     def _parse_problem(self, data: dict[str, Any]) -> ProblemContext:
-        """Parse the API response into a ProblemContext.
+        """Parse the raw API response into a ProblemContext.
 
-        The alfa-leetcode-api returns a flat JSON object (no GraphQL nesting).
+        The raw endpoint returns the full LeetCode question object with:
+        - codeSnippets: exact boilerplate per language
+        - hints: algorithmic hints
+        - metaData: function signature metadata
         """
-        title = data.get("questionTitle", data.get("title", "Unknown"))
+        title = data.get("title", data.get("questionTitle", "Unknown"))
         difficulty_str = data.get("difficulty", "Medium")
         difficulty = Difficulty(difficulty_str)
 
         # Extract description from HTML content
-        description = data.get("question", "")
-        # Strip HTML tags for a cleaner description
-        description = self._strip_html(description)
-
-        # Parse constraints from the description (look for "Constraints:" section)
-        constraints = self._extract_constraints(data.get("question", ""))
+        raw_html = data.get("content", data.get("question", ""))
+        description = self._strip_html(raw_html)
+        constraints = self._extract_constraints(raw_html)
 
         # Parse example test cases
         raw = data.get("exampleTestcases", "")
@@ -105,11 +109,23 @@ class LeetCodeFetcher(ProblemFetcher):
                         "output": parts[i + 1],
                     })
 
+        # Extract exact LeetCode boilerplate for the target language
+        boilerplate = ""
+        code_snippets = data.get("codeSnippets", [])
+        for snippet in code_snippets:
+            if snippet.get("langSlug") == self.language:
+                boilerplate = snippet.get("code", "")
+                log.debug("Found C++ boilerplate: %s chars", len(boilerplate))
+                break
+        # Fallback: use first available snippet
+        if not boilerplate and code_snippets:
+            boilerplate = code_snippets[0].get("code", "")
+
+        # Extract hints
+        hints = data.get("hints", [])
+
         title_slug = data.get("titleSlug", "")
         source_url = f"https://leetcode.com/problems/{title_slug}/"
-
-        # No code snippets from this API — boilerplate is empty
-        boilerplate = ""
 
         return ProblemContext(
             title=title,
@@ -121,32 +137,25 @@ class LeetCodeFetcher(ProblemFetcher):
             source_url=source_url,
             source="leetcode",
             language=self.language,
+            hints=hints,
         )
 
     @staticmethod
     def _strip_html(html: str) -> str:
         """Remove HTML tags from the problem description."""
-        import re
-        # Remove HTML tags
         text = re.sub(r"<[^>]+>", "", html)
-        # Decode common HTML entities
         text = text.replace("&nbsp;", " ").replace("&lt;", "<").replace("&gt;", ">")
         text = text.replace("&amp;", "&").replace("&quot;", '"').replace("&#39;", "'")
-        # Collapse multiple newlines
-        import textwrap
-        return textwrap.dedent(text).strip()
+        return text.strip()
 
     @staticmethod
     def _extract_constraints(html: str) -> str:
         """Extract the constraints section from HTML problem description."""
-        import re
-        # Look for content after "Constraints:" heading
         match = re.search(
             r"<p><strong>(?:Constraints|Constraints:)</strong></p>\s*(.*?)(?:</ul>|<p>|$)",
             html,
             re.DOTALL,
         )
         if match:
-            constraints_html = match.group(1)
-            return LeetCodeFetcher._strip_html(constraints_html)
+            return LeetCodeFetcher._strip_html(match.group(1))
         return ""

@@ -32,7 +32,7 @@ execution:
 
     temperature_code: 0.2   # Low temp for deterministic code
     temperature_doc: 0.7    # Higher temp for creative docs
-    max_tokens_code: 2048
+    max_tokens_code: 4096
     max_tokens_doc: 1500
     retry_count: 3
     retry_delay: 5  # seconds
