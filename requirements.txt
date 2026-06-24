@@ -1,0 +1,6 @@
+# GitHubGreenCard dependencies
+# Install: pip install -r requirements.txt
+
+openai>=1.0.0
+requests>=2.31.0
+pyyaml>=6.0

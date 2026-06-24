@@ -1,0 +1,46 @@
+# GitHubGreenCard Configuration
+# ==============================
+# All pipeline settings in one place.
+
+pipeline:
+  # Target programming language for solutions
+  language: "cpp"
+  # Output root directory under repo
+  output_root: "LeetCode"
+
+ingestion:
+  leetcode:
+    # LeetCode GraphQL API endpoint
+    api_url: "https://leetcode.com/graphql"
+    # Request timeout in seconds
+    timeout: 30
+  backlog:
+    # Path to local backlog JSON file
+    file_path: "backlog.json"
+
+execution:
+  llm:
+    # NVIDIA NIM (OpenAI-compatible) — free tier: 1,000 inference credits, 40 req/min
+    # Sign up at https://build.nvidia.com to get an nvapi- key
+    # Set NVIDIA_API_KEY (or OPENAI_API_KEY) env var
+    base_url: "https://integrate.api.nvidia.com/v1"
+    model: "nvidia/nemotron-mini-4b-instruct"
+    temperature_code: 0.2   # Low temp for deterministic code
+    temperature_doc: 0.7    # Higher temp for creative docs
+    max_tokens_code: 2048
+    max_tokens_doc: 1500
+    retry_count: 3
+    retry_delay: 5  # seconds
+
+repository:
+  git:
+    # Branch to push to
+    branch: "main"
+    # Author name for commits
+    author_name: "GitHubGreenCard Bot"
+    # Author email for commits
+    author_email: "bot@githubgreencard.dev"
+
+logging:
+  level: "INFO"  # DEBUG, INFO, WARNING, ERROR
+  format: "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
