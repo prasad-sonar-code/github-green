@@ -1,0 +1,24 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+dist/
+build/
+.eggs/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Environment
+.env
+.envrc
+
+# Output (tracked via git — LeetCode solutions are the product)
+# LeetCode/  # Uncomment to ignore solutions locally if needed
+
+# OS
+.DS_Store
+Thumbs.db
